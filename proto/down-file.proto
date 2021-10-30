@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "protoFile";
+option java_outer_classname = "file";
+package file;
+
+service File{
+  rpc downFile (DownFileInfoRequest) returns (DownFileSynchronizationResultResponse);
+}
+
+/** 请求消息 */
+message DownFileInfoRequest{
+
+  // 待处理的url
+  string downUrl = 1;
+
+  // 待处理的消息
+  string message = 2;
+
+  // 对文件的处理方式
+  enum Operation {
+    DOWN_FILE = 0;
+  }
+  Operation operation = 3;
+
+}
+
+/** 同步响应结果 表示已开始处理 */
+message DownFileSynchronizationResultResponse{
+
+  // 响应值
+  int32 code = 1;
+
+  // 响应消息
+  string message = 2;
+
+  // 文件总大小
+  string filesize = 3;
+
+  // 文件被分割的数目
+  string fileFragmentNum = 4;
+
+
+
+
+}
