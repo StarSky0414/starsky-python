@@ -18,7 +18,7 @@ class bigfile_download:
         self.url = url
         self.session = session
         self.proxy = proxy
-        self.filename = url.split('/')[-1]
+        self.filename = url.split('/')[-1].split('?')[0]
         self.mtd_list = []
         self.tmp_path = tmp_path
         self.file_fragment_size = file_fragment_size
@@ -83,8 +83,9 @@ class bigfile_download:
 
         print("file_fragment_num = {0}".format(len(self.mtd_list)))
         redisconn.hset(self.filename,"num",len(self.mtd_list))
+        redisconn.hset(self.filename, "num_finish", 0)
         db = MySqLHelper()
-        db.insertone("INSERT into t_down_file (file_name,file_num,file_url,file_create_time)  VALUES (%s,%s,%s,NOW())  ",(self.filename,len(self.mtd_list),self.url))
+        db.insertone("INSERT into t_down_file (file_name,file_num,file_url,file_create_time,file_size)  VALUES (%s,%s,%s,NOW(),%s)  ",(self.filename,len(self.mtd_list),self.url,StrOfSize(self.filesize)))
 
 
     async def fragment_down(self, mtd):
@@ -122,7 +123,7 @@ class bigfile_download:
         dones, dltasks = await asyncio.wait(dltasks)
 
     async def fragment_merge(self, target_path=None):
-        if target_path == None:
+        if target_path != None:
             target_filename = target_path + self.filename
         else:
             target_filename = self.filename
@@ -134,7 +135,7 @@ class bigfile_download:
                     newfile.write(fragment_file.read())
         redisconn.hset(self.filename,"file_path",target_filename)
         db = MySqLHelper()
-        db.update("UPDATE t_down_file SET file_finsh_time = NOW() , file_path = %s WHERE file_name=%s ",(target_path,self.filename))
+        db.update("UPDATE t_down_file SET file_finsh_time = NOW() , file_path = %s , file_num_finsh = %s WHERE file_name=%s ",(target_path,len(self.mtd_list),self.filename))
         print('fragment_merge end!')
 
     async def fragment_down_check(self):
@@ -160,7 +161,7 @@ async def download_bigfile(url, proxy=None):
     file_fragment_size = 1024 * 1024 * 2
     task_num_max = 5
     tmp_path = './down_cache'
-    target_path = './down_file'
+    target_path = '/root/vue/image/down_file/'
 
     async with aiohttp.ClientSession() as session:
         bd = bigfile_download(session, url, tmp_path=tmp_path, proxy=proxy, file_fragment_size=file_fragment_size)
@@ -177,6 +178,26 @@ def start_loop(loop,downUrl):
 
     asyncio.set_event_loop(loop)
     loop.run_until_complete(download_bigfile(downUrl))
+
+def StrOfSize(size):
+    '''
+    auth: wangshengke@kedacom.com ；科达柯大侠
+    递归实现，精确为最大单位值 + 小数点后三位
+    '''
+    def strofsize(integer, remainder, level):
+        if integer >= 1024:
+            remainder = integer % 1024
+            integer //= 1024
+            level += 1
+            return strofsize(integer, remainder, level)
+        else:
+            return integer, remainder, level
+
+    units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+    integer, remainder, level = strofsize(size, 0, 0)
+    if level+1 > len(units):
+        level = -1
+    return ( '{}.{:>03d} {}'.format(integer, remainder, units[level]) )
 
 
 #存储运行时候的数据
